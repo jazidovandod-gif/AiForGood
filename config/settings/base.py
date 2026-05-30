@@ -25,9 +25,9 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.gis",
     "rest_framework",
-    "core.auth",
-    "core.database",
-    "apps.logistica",
+    "core.auth.apps.AuthConfig",
+    "core.database.apps.DatabaseConfig",
+    "apps.logistica.apps.LogisticaConfig",
 ]
 
 MIDDLEWARE = [
