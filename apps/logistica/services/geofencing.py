@@ -1,5 +1,5 @@
 from django.contrib.gis.geos import Point
-from apps.logistica.models.geospatial import RutaAsignada
+from apps.logistica.models import RouteStop
 
 class GeofencingService:
     """
@@ -8,40 +8,34 @@ class GeofencingService:
     """
     
     @staticmethod
-    def validar_checkin(ruta_id: int, latitud: float, longitud: float) -> dict:
+    def validar_checkin(route_stop_id: str, latitud: float, longitud: float) -> dict:
         """
-        Calcula la distancia esférica real entre el reponedor y la sucursal.
+        Calcula la distancia esférica real entre el reponedor y el Punto de Venta.
         """
         try:
-            ruta = RutaAsignada.objects.get(id=ruta_id)
-        except RutaAsignada.DoesNotExist:
+            stop = RouteStop.objects.get(id=route_stop_id)
+        except RouteStop.DoesNotExist:
             return {
                 "autorizado": False,
-                "error": "Sucursal o ruta no encontrada en base de datos",
+                "error": "Parada de ruta o PDV no encontrado en base de datos",
             }
 
-        # Construcción del punto WGS84
         punto_reponedor = Point(longitud, latitud, srid=4326)
         
-        # En SRID 4326 distance() devuelve grados, por lo que multiplicamos por el 
-        # promedio de metros por grado en el ecuador (aprox 111,320 metros) 
-        # para una aproximación matemática rápida y ligera en memoria.
-        # (Para ultra-precisión se podría invocar DistanceFunc de BD).
-        distancia_metros = punto_reponedor.distance(ruta.ubicacion_objetivo) * 111320.0
+        # distance() devuelve grados. Multiplicamos por 111,320 para metros (aprox).
+        distancia_metros = punto_reponedor.distance(stop.pdv.location) * 111320.0
         
-        autorizado = distancia_metros <= ruta.radio_tolerancia_metros
+        # Tolerancia fija de 100 metros para PDVs (o lo que configuremos)
+        tolerancia_metros = 100.0
+        autorizado = distancia_metros <= tolerancia_metros
         
         return {
             "autorizado": autorizado,
             "distancia_metros": round(distancia_metros, 2),
-            "tolerancia_metros": ruta.radio_tolerancia_metros,
+            "tolerancia_metros": tolerancia_metros,
         }
         
     @staticmethod
     def regla_antispoofing_velocidad(velocidad_kmh: float) -> bool:
-        """
-        Bloquea check-ins si el dispositivo reporta estar moviéndose a velocidades
-        absurdas (ej. teletransportación por Fake GPS no detectada nativamente).
-        """
         VELOCIDAD_MAXIMA_LOGICA_KMH = 150.0
         return velocidad_kmh > VELOCIDAD_MAXIMA_LOGICA_KMH

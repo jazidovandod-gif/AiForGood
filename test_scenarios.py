@@ -52,7 +52,7 @@ def main():
     run_test_case(
         "Check-in en la ubicación exacta de la sucursal",
         {
-            "ruta_id": 1,
+            "route_stop_id": "11111111-1111-1111-1111-111111111111",
             "latitud": -33.4489, 
             "longitud": -70.6693,
             "velocidad_kmh": 0,
@@ -66,7 +66,7 @@ def main():
     run_test_case(
         "Check-in alejado de la sucursal (Santiago Centro vs Providencia)",
         {
-            "ruta_id": 1,
+            "route_stop_id": "11111111-1111-1111-1111-111111111111",
             "latitud": -33.4250, # Latitud desplazada hacia el noreste
             "longitud": -70.6150, # Longitud desplazada hacia el este
             "velocidad_kmh": 0,
@@ -80,7 +80,7 @@ def main():
     run_test_case(
         "Check-in en coordenadas correctas pero con flag es_mock_location=True",
         {
-            "ruta_id": 1,
+            "route_stop_id": "11111111-1111-1111-1111-111111111111",
             "latitud": -33.4489, 
             "longitud": -70.6693,
             "velocidad_kmh": 0,
@@ -94,7 +94,7 @@ def main():
     run_test_case(
         "Check-in a velocidad absurda (250 km/h)",
         {
-            "ruta_id": 1,
+            "route_stop_id": "11111111-1111-1111-1111-111111111111",
             "latitud": -33.4489, 
             "longitud": -70.6693,
             "velocidad_kmh": 250.0,

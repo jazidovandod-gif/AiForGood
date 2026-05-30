@@ -31,7 +31,7 @@ if response.status_code == 200:
     }
     
     checkin_payload = {
-        "ruta_id": 1,
+        "route_stop_id": "11111111-1111-1111-1111-111111111111",
         "latitud": -33.4489, 
         "longitud": -70.6693,
         "velocidad_kmh": 0,
