@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15  # Puedes cambiar la versión según tus necesidades (ej. 16, 14, latest)
+    container_name: servidor_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: coder
+      POSTGRES_PASSWORD: vibecoding
+      POSTGRES_DB: mi_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - postgres_net
+
+volumes:
+  pgdata:
+    name: postgres_data_volume
+
+networks:
+  postgres_net:
+    name: postgres_network
