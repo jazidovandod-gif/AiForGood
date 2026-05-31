@@ -31,7 +31,7 @@ export default function Dashboard({ token, onLogout }) {
       // Cargar mercados para mapear nombres
       const { data: marketData } = await supabase
         .from('markets')
-        .select('id, market_name, zone');
+        .select('id, name, zone');
 
       const marketMap = {};
       (marketData || []).forEach(m => { marketMap[m.id] = m; });
@@ -47,7 +47,7 @@ export default function Dashboard({ token, onLogout }) {
       // Cargar usuarios reponedores
       const { data: userData, error: userErr } = await supabase
         .from('users')
-        .select('id, full_name, role, phone')
+        .select('id, display_name, role')
         .eq('role', 'replenisher');
 
       if (userErr) throw userErr;
@@ -92,7 +92,7 @@ export default function Dashboard({ token, onLogout }) {
           lat,
           lng,
           displayName: pdv.code || pdv.client_code || 'PDV',
-          marketName: market ? market.market_name : '',
+          marketName: market ? market.name : '',
           zone: market ? market.zone : '',
           visitStatus: visitMap[pdv.id] || 'pending'
         };
