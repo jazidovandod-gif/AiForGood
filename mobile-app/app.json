@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Venado Logística",
+    "slug": "venado-logistica",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Venado necesita tu GPS para validar la llegada a cada punto de venta."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDvr5Fvy766IyGV4a8fvTp9QS3QCjFqhkk"
+        }
+      },
+      "package": "com.andrewflovel.venadologistica"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Venado necesita tu GPS para validar la llegada a cada punto de venta."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "8101171d-45d1-4af3-a111-18ac04555665"
+      }
+    }
+  }
+}

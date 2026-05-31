@@ -16,6 +16,11 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
 ]
 
+# En desarrollo aceptamos cualquier host (IP LAN, dominios de túnel ngrok/cloudflared,
+# etc.) para poder probar la app móvil desde cualquier red. NUNCA usar en producción.
+if DEBUG:
+    ALLOWED_HOSTS = ["*"]
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -45,6 +50,15 @@ MIDDLEWARE = [
 # CORS Settings (Desarrollo)
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'authorization',
+    'content-type',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-device-id',
+]
 
 
 ROOT_URLCONF = "config.urls"
@@ -121,6 +135,12 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "core.auth.authentication.DeviceJWTAuthentication",
     ],
+}
+
+from datetime import timedelta
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
 
 # Integrations
