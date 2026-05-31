@@ -27,5 +27,11 @@ class DeviceTokenObtainPairSerializer(TokenObtainPairSerializer):
         data["access"] = str(refresh.access_token)
         # Opcional: devolvemos el device_id en la respuesta para confirmación del cliente
         data["device_id"] = device_id
+        
+        # Validación de roles para el Frontend
+        data["is_staff"] = self.user.is_staff
+        data["is_superuser"] = self.user.is_superuser
+        # El script init_db.py guarda el rol ('Supervisor', 'Reponedor') en el campo last_name
+        data["role"] = self.user.last_name
 
         return data
