@@ -1,14 +1,16 @@
 from django.db import models
-from .geospatial import TrackingEvent
+from .routing import Visit
 
 class FormularioDinamico(models.Model):
     """
     Soporta los campos mutables y elásticos inyectados por los mentores en el hackathon.
     Aprovecha la potencia de JSONB de PostgreSQL para absorber esquemas no estructurados.
     """
-    tracking = models.ForeignKey(
-        TrackingEvent,
+    visit = models.ForeignKey(
+        Visit,
         on_delete=models.CASCADE,
+        related_name="formularios_dinamicos",
+        null=True, blank=True
     )
     tipo_formulario = models.CharField(
         max_length=100,

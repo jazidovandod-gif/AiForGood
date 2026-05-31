@@ -31,8 +31,8 @@ class CheckInAPIView(generics.CreateAPIView):
             "status": "success",
             "mensaje": "Check-in exitoso. Perímetro de seguridad geoespacial validado.",
             "data": {
-                "tracking_id": evento.id,
-                "timestamp": evento.timestamp,
+                "visit_id": evento.id,
+                "started_at": evento.started_at,
             }
         }, status=status.HTTP_201_CREATED)
 

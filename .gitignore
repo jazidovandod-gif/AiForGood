@@ -6,6 +6,8 @@ __pycache__/
 
 # Environments
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/
@@ -19,6 +21,10 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# Dependencies
+node_modules/
+vendor/
+
 # IDE
 .vscode/
 .idea/
@@ -26,3 +32,11 @@ db.sqlite3-journal
 # OS
 .DS_Store
 Thumbs.db
+
+# Build
+dist/
+build/
+
+# AI Agent configs (secrets/MCPs)
+.claude/.mcp.json
+.agents/mcp_config.json
