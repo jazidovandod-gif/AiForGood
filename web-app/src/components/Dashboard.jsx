@@ -14,6 +14,7 @@ const LA_PAZ_CENTER = { lat: -16.5000, lng: -68.1193 };
 export default function Dashboard({ token, onLogout }) {
   const [pdvs, setPdvs] = useState([]);
   const [users, setUsers] = useState([]);
+  const [markets, setMarkets] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedPdv, setSelectedPdv] = useState(null);
@@ -27,10 +28,19 @@ export default function Dashboard({ token, onLogout }) {
     }
 
     try {
-      // Cargar PDVs con coordenadas
+      // Cargar mercados para mapear nombres
+      const { data: marketData } = await supabase
+        .from('markets')
+        .select('id, market_name, zone');
+
+      const marketMap = {};
+      (marketData || []).forEach(m => { marketMap[m.id] = m; });
+      setMarkets(marketMap);
+
+      // Cargar PDVs - la tabla real usa: code, client_code, market_id, location (PostGIS)
       const { data: pdvData, error: pdvErr } = await supabase
         .from('pdvs')
-        .select('id, name, address, channel, latitude, longitude, client_type_id');
+        .select('id, code, client_code, market_id, client_type_id, location, drive_folder_url, notes, is_active, visit_minutes_estimated');
 
       if (pdvErr) throw pdvErr;
 
@@ -55,10 +65,38 @@ export default function Dashboard({ token, onLogout }) {
         visitMap[v.pdv_id] = v.status;
       });
 
-      const enrichedPdvs = (pdvData || []).map(pdv => ({
-        ...pdv,
-        visitStatus: visitMap[pdv.id] || 'pending'
-      }));
+      // Extraer lat/lng de la columna PostGIS 'location'
+      // PostGIS devuelve un objeto GeoJSON o un WKT; Supabase lo devuelve como texto
+      const enrichedPdvs = (pdvData || []).map(pdv => {
+        let lat = null, lng = null;
+
+        if (pdv.location) {
+          // Supabase con PostGIS puede devolver en formato:
+          // POINT(lng lat) o como un objeto {type: "Point", coordinates: [lng, lat]}
+          if (typeof pdv.location === 'string') {
+            const match = pdv.location.match(/POINT\(([^ ]+) ([^ ]+)\)/);
+            if (match) {
+              lng = parseFloat(match[1]);
+              lat = parseFloat(match[2]);
+            }
+          } else if (pdv.location.coordinates) {
+            lng = pdv.location.coordinates[0];
+            lat = pdv.location.coordinates[1];
+          }
+        }
+
+        const market = marketMap[pdv.market_id];
+
+        return {
+          ...pdv,
+          lat,
+          lng,
+          displayName: pdv.code || pdv.client_code || 'PDV',
+          marketName: market ? market.market_name : '',
+          zone: market ? market.zone : '',
+          visitStatus: visitMap[pdv.id] || 'pending'
+        };
+      });
 
       setPdvs(enrichedPdvs);
       setUsers(userData || []);
@@ -186,7 +224,7 @@ export default function Dashboard({ token, onLogout }) {
             >
               <div className={`pdv-accent ${pdv.visitStatus}`}></div>
               <div className="pdv-content">
-                <div className="pdv-name">{pdv.name}</div>
+                <div className="pdv-name">{pdv.displayName}</div>
                 <div className="pdv-meta">
                   <span className={`pdv-badge ${pdv.visitStatus}`}>
                     {pdv.visitStatus === 'completed' && <CheckCircle2 size={10} />}
@@ -194,7 +232,8 @@ export default function Dashboard({ token, onLogout }) {
                     {pdv.visitStatus === 'skipped' && <AlertTriangle size={10} />}
                     {getStatusLabel(pdv.visitStatus)}
                   </span>
-                  <span>{pdv.channel || 'Canal'}</span>
+                  {pdv.marketName && <span>{pdv.marketName}</span>}
+                  {pdv.zone && <span>· {pdv.zone}</span>}
                 </div>
               </div>
             </div>
@@ -221,12 +260,12 @@ export default function Dashboard({ token, onLogout }) {
             style={{ width: '100%', height: '100%' }}
           >
             {pdvs.map((pdv) => {
-              if (!pdv.latitude || !pdv.longitude) return null;
+              if (!pdv.lat || !pdv.lng) return null;
               const colors = getMarkerColors(pdv.visitStatus);
               return (
                 <AdvancedMarker
                   key={pdv.id}
-                  position={{ lat: parseFloat(pdv.latitude), lng: parseFloat(pdv.longitude) }}
+                  position={{ lat: pdv.lat, lng: pdv.lng }}
                   onClick={() => handlePdvClick(pdv)}
                 >
                   <Pin
@@ -239,25 +278,30 @@ export default function Dashboard({ token, onLogout }) {
               );
             })}
 
-            {selectedPdv && selectedPdv.latitude && selectedPdv.longitude && (
+            {selectedPdv && selectedPdv.lat && selectedPdv.lng && (
               <InfoWindow
-                position={{
-                  lat: parseFloat(selectedPdv.latitude),
-                  lng: parseFloat(selectedPdv.longitude)
-                }}
+                position={{ lat: selectedPdv.lat, lng: selectedPdv.lng }}
                 onCloseClick={() => { setSelectedPdv(null); setActivePdvId(null); }}
               >
                 <div style={{ fontFamily: 'Hanken Grotesk, sans-serif', padding: '4px 0', minWidth: 200 }}>
                   <h3 style={{ fontSize: 16, fontWeight: 700, color: '#001E40', marginBottom: 6 }}>
-                    {selectedPdv.name}
+                    {selectedPdv.displayName}
                   </h3>
+                  {selectedPdv.marketName && (
+                    <p style={{ fontSize: 13, color: '#43474F', marginBottom: 4 }}>
+                      <MapPin size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                      {selectedPdv.marketName}{selectedPdv.zone ? ` · ${selectedPdv.zone}` : ''}
+                    </p>
+                  )}
                   <p style={{ fontSize: 13, color: '#43474F', marginBottom: 4 }}>
-                    <MapPin size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                    {selectedPdv.address || 'Sin dirección registrada'}
+                    Codigo: <strong>{selectedPdv.code || '—'}</strong>
                   </p>
-                  <p style={{ fontSize: 13, color: '#43474F', marginBottom: 8 }}>
-                    Canal: <strong>{selectedPdv.channel || '—'}</strong>
-                  </p>
+                  {selectedPdv.visit_minutes_estimated && (
+                    <p style={{ fontSize: 13, color: '#43474F', marginBottom: 8 }}>
+                      <Clock size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                      Estimado: <strong>{selectedPdv.visit_minutes_estimated} min</strong>
+                    </p>
+                  )}
                   <span
                     className={`pdv-badge ${selectedPdv.visitStatus}`}
                     style={{ fontSize: 12 }}
@@ -266,22 +310,24 @@ export default function Dashboard({ token, onLogout }) {
                     {selectedPdv.visitStatus === 'pending' && <Clock size={10} />}
                     {getStatusLabel(selectedPdv.visitStatus)}
                   </span>
-                  <div style={{ marginTop: 10 }}>
-                    <a
-                      href={`https://www.google.com/maps/dir/?api=1&destination=${selectedPdv.latitude},${selectedPdv.longitude}&travelmode=driving`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                        padding: '6px 14px', borderRadius: 4,
-                        background: '#001E40', color: '#fff',
-                        fontSize: 12, fontWeight: 600, textDecoration: 'none',
-                        letterSpacing: '0.05em', textTransform: 'uppercase'
-                      }}
-                    >
-                      <Navigation size={12} /> Navegar
-                    </a>
-                  </div>
+                  {selectedPdv.lat && selectedPdv.lng && (
+                    <div style={{ marginTop: 10 }}>
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${selectedPdv.lat},${selectedPdv.lng}&travelmode=driving`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          padding: '6px 14px', borderRadius: 4,
+                          background: '#001E40', color: '#fff',
+                          fontSize: 12, fontWeight: 600, textDecoration: 'none',
+                          letterSpacing: '0.05em', textTransform: 'uppercase'
+                        }}
+                      >
+                        <Navigation size={12} /> Navegar
+                      </a>
+                    </div>
+                  )}
                 </div>
               </InfoWindow>
             )}
