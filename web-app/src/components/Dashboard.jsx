@@ -1,132 +1,311 @@
-import React, { useEffect, useState } from 'react';
-import { BACKEND_URL, supabase } from '../lib/supabase';
+import React, { useEffect, useState, useCallback } from 'react';
+import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow } from '@vis.gl/react-google-maps';
+import { supabase } from '../lib/supabase';
+import {
+  MapPin, Users, CheckCircle2, Clock, AlertTriangle,
+  LogOut, Navigation, Store, Wifi, Calendar, TrendingUp
+} from 'lucide-react';
+
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+// Centro de La Paz, Bolivia
+const LA_PAZ_CENTER = { lat: -16.5000, lng: -68.1193 };
 
 export default function Dashboard({ token, onLogout }) {
-  const [data, setData] = useState(null);
+  const [pdvs, setPdvs] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [source, setSource] = useState('');
+  const [selectedPdv, setSelectedPdv] = useState(null);
+  const [activePdvId, setActivePdvId] = useState(null);
 
-  useEffect(() => {
-    cargarDashboard();
-  }, []);
-
-  async function cargarDashboard() {
-    // Intenta Supabase directo si está configurado
-    if (supabase) {
-      try {
-        const { data: rows, error: sbErr } = await supabase
-          .from('vw_supervisor_dashboard')
-          .select('*');
-
-        if (!sbErr && rows && rows.length > 0) {
-          setData({ fecha: new Date().toISOString().split('T')[0], rutas: rows });
-          setSource('Supabase');
-          return;
-        }
-      } catch {}
+  const cargarDatos = useCallback(async () => {
+    if (!supabase) {
+      setError('Supabase no está configurado. Verifica el archivo .env');
+      setLoading(false);
+      return;
     }
 
-    // Fallback: backend Django
     try {
-      const res = await fetch(`${BACKEND_URL}/api/logistica/supervisor/dashboard/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Device-ID': 'web-supervisor-01',
-        },
+      // Cargar PDVs con coordenadas
+      const { data: pdvData, error: pdvErr } = await supabase
+        .from('pdvs')
+        .select('id, name, address, channel, latitude, longitude, client_type_id');
+
+      if (pdvErr) throw pdvErr;
+
+      // Cargar usuarios reponedores
+      const { data: userData, error: userErr } = await supabase
+        .from('users')
+        .select('id, full_name, role, phone')
+        .eq('role', 'replenisher');
+
+      if (userErr) throw userErr;
+
+      // Cargar visitas de hoy
+      const today = new Date().toISOString().split('T')[0];
+      const { data: visitData } = await supabase
+        .from('visits')
+        .select('id, pdv_id, status, started_at, finished_at')
+        .eq('visit_date', today);
+
+      // Mapear estado de visita a cada PDV
+      const visitMap = {};
+      (visitData || []).forEach(v => {
+        visitMap[v.pdv_id] = v.status;
       });
 
-      if (res.status === 401) {
-        onLogout();
-        return;
-      }
+      const enrichedPdvs = (pdvData || []).map(pdv => ({
+        ...pdv,
+        visitStatus: visitMap[pdv.id] || 'pending'
+      }));
 
-      if (!res.ok) {
-        setError('Error al cargar dashboard: ' + res.status);
-        return;
-      }
-
-      setData(await res.json());
-      setSource('Backend Django');
+      setPdvs(enrichedPdvs);
+      setUsers(userData || []);
+      setLoading(false);
     } catch (e) {
-      setError('Sin conexión al servidor: ' + e.message);
+      setError('Error al cargar datos: ' + e.message);
+      setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    cargarDatos();
+  }, [cargarDatos]);
+
+  // Estadísticas
+  const totalPdvs = pdvs.length;
+  const completados = pdvs.filter(p => p.visitStatus === 'completed').length;
+  const pendientes = pdvs.filter(p => p.visitStatus === 'pending').length;
+  const enProgreso = pdvs.filter(p => p.visitStatus === 'in_progress').length;
+
+  const handlePdvClick = (pdv) => {
+    setActivePdvId(pdv.id);
+    setSelectedPdv(pdv);
+  };
+
+  const getMarkerColors = (status) => {
+    switch (status) {
+      case 'completed':
+        return { bg: '#1B6D24', border: '#0a4a12', glyph: '#FFFFFF' };
+      case 'in_progress':
+        return { bg: '#3A5F94', border: '#001E40', glyph: '#FFFFFF' };
+      case 'skipped':
+        return { bg: '#BA1A1A', border: '#460003', glyph: '#FFFFFF' };
+      default:
+        return { bg: '#A7C8FF', border: '#3A5F94', glyph: '#001E40' };
+    }
+  };
+
+  const getStatusLabel = (status) => {
+    switch (status) {
+      case 'completed': return 'Completado';
+      case 'in_progress': return 'En progreso';
+      case 'skipped': return 'Omitido';
+      default: return 'Pendiente';
+    }
+  };
+
+  // ── Loading State ──
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner"></div>
+        <span className="loading-text">Cargando panel de control</span>
+      </div>
+    );
   }
 
-  if (error) return (
-    <div style={{ padding: 24, color: '#c0392b' }}>
-      <strong>Error:</strong> {error}
-    </div>
-  );
-
-  if (!data) return <div style={{ padding: 24 }}>Cargando dashboard...</div>;
-
-  return (
-    <div style={{ fontFamily: 'sans-serif', padding: 24, maxWidth: 900, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#1a237e' }}>Panel Supervisor — Venado</h1>
-          <small style={{ color: '#666' }}>Fecha: {data.fecha} · Fuente: <strong>{source}</strong></small>
-        </div>
-        <button onClick={onLogout} style={{ padding: '6px 16px', cursor: 'pointer' }}>Salir</button>
+  // ── Error State ──
+  if (error) {
+    return (
+      <div className="error-screen">
+        <AlertTriangle size={48} />
+        <p>{error}</p>
       </div>
+    );
+  }
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-        <thead>
-          <tr style={{ background: '#1a237e', color: '#fff' }}>
-            <th style={th}>Reponedor</th>
-            <th style={th}>Estado</th>
-            <th style={th}>PDVs</th>
-            <th style={th}>Completados</th>
-            <th style={th}>Pendientes</th>
-            <th style={th}>Omitidos</th>
-            <th style={th}>% Avance</th>
-            <th style={th}>Min estimados</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.rutas.map((r, i) => (
-            <tr key={i} style={{ background: i % 2 === 0 ? '#f5f5f5' : '#fff' }}>
-              <td style={td}>{r.reponedor || r.replenisher_name}</td>
-              <td style={td}><StatusBadge status={r.status || r.route_status} /></td>
-              <td style={{ ...td, textAlign: 'center' }}>{r.total_pdvs}</td>
-              <td style={{ ...td, textAlign: 'center', color: '#2e7d32', fontWeight: 'bold' }}>{r.completados ?? r.stops_completed}</td>
-              <td style={{ ...td, textAlign: 'center' }}>{r.pendientes ?? r.stops_pending}</td>
-              <td style={{ ...td, textAlign: 'center', color: '#c62828' }}>{r.omitidos ?? r.stops_skipped}</td>
-              <td style={{ ...td, textAlign: 'center' }}>
-                <strong>{r.pct_completitud ?? r.completion_pct ?? 0}%</strong>
-              </td>
-              <td style={{ ...td, textAlign: 'center' }}>{r.total_estimado_min ?? r.total_estimated_minutes}</td>
-            </tr>
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('es-BO', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
+
+  return (
+    <div className="dashboard-layout">
+      {/* ── TOP BAR ── */}
+      <header className="topbar">
+        <div className="topbar-brand">
+          <Navigation size={22} />
+          <h1>Logistica Pro — Venado</h1>
+        </div>
+        <div className="topbar-meta">
+          <span className="topbar-badge online">
+            <Wifi size={12} /> Conectado
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Calendar size={14} />
+            {dateStr}
+          </span>
+          <button className="btn-logout" onClick={onLogout}>
+            <LogOut size={14} /> Salir
+          </button>
+        </div>
+      </header>
+
+      {/* ── SIDEBAR ── */}
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <h2>Panel de Control</h2>
+          <p>{users.length} reponedores · {totalPdvs} puntos de venta</p>
+        </div>
+
+        {/* Stats */}
+        <div className="stats-row">
+          <div className="stat-card">
+            <span className="stat-value primary">{totalPdvs}</span>
+            <span className="stat-label">Total PDVs</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-value success">{completados}</span>
+            <span className="stat-label">Completados</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-value warning">{pendientes + enProgreso}</span>
+            <span className="stat-label">Pendientes</span>
+          </div>
+        </div>
+
+        {/* PDV List */}
+        <div className="pdv-list">
+          {pdvs.map((pdv) => (
+            <div
+              key={pdv.id}
+              className={`pdv-card ${activePdvId === pdv.id ? 'active' : ''}`}
+              onClick={() => handlePdvClick(pdv)}
+            >
+              <div className={`pdv-accent ${pdv.visitStatus}`}></div>
+              <div className="pdv-content">
+                <div className="pdv-name">{pdv.name}</div>
+                <div className="pdv-meta">
+                  <span className={`pdv-badge ${pdv.visitStatus}`}>
+                    {pdv.visitStatus === 'completed' && <CheckCircle2 size={10} />}
+                    {pdv.visitStatus === 'pending' && <Clock size={10} />}
+                    {pdv.visitStatus === 'skipped' && <AlertTriangle size={10} />}
+                    {getStatusLabel(pdv.visitStatus)}
+                  </span>
+                  <span>{pdv.channel || 'Canal'}</span>
+                </div>
+              </div>
+            </div>
           ))}
-        </tbody>
-      </table>
 
-      {data.rutas.length === 0 && (
-        <p style={{ color: '#666', textAlign: 'center', marginTop: 32 }}>Sin rutas activas para hoy.</p>
-      )}
+          {pdvs.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--on-surface-variant)' }}>
+              <Store size={40} strokeWidth={1.2} style={{ marginBottom: 12, opacity: 0.4 }} />
+              <p style={{ fontSize: 14 }}>Sin puntos de venta registrados</p>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* ── MAP ── */}
+      <div className="map-container">
+        <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
+          <Map
+            defaultZoom={13}
+            defaultCenter={LA_PAZ_CENTER}
+            mapId="venado-dashboard-map"
+            gestureHandling="greedy"
+            disableDefaultUI={false}
+            style={{ width: '100%', height: '100%' }}
+          >
+            {pdvs.map((pdv) => {
+              if (!pdv.latitude || !pdv.longitude) return null;
+              const colors = getMarkerColors(pdv.visitStatus);
+              return (
+                <AdvancedMarker
+                  key={pdv.id}
+                  position={{ lat: parseFloat(pdv.latitude), lng: parseFloat(pdv.longitude) }}
+                  onClick={() => handlePdvClick(pdv)}
+                >
+                  <Pin
+                    background={colors.bg}
+                    borderColor={colors.border}
+                    glyphColor={colors.glyph}
+                    scale={activePdvId === pdv.id ? 1.3 : 1}
+                  />
+                </AdvancedMarker>
+              );
+            })}
+
+            {selectedPdv && selectedPdv.latitude && selectedPdv.longitude && (
+              <InfoWindow
+                position={{
+                  lat: parseFloat(selectedPdv.latitude),
+                  lng: parseFloat(selectedPdv.longitude)
+                }}
+                onCloseClick={() => { setSelectedPdv(null); setActivePdvId(null); }}
+              >
+                <div style={{ fontFamily: 'Hanken Grotesk, sans-serif', padding: '4px 0', minWidth: 200 }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: '#001E40', marginBottom: 6 }}>
+                    {selectedPdv.name}
+                  </h3>
+                  <p style={{ fontSize: 13, color: '#43474F', marginBottom: 4 }}>
+                    <MapPin size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                    {selectedPdv.address || 'Sin dirección registrada'}
+                  </p>
+                  <p style={{ fontSize: 13, color: '#43474F', marginBottom: 8 }}>
+                    Canal: <strong>{selectedPdv.channel || '—'}</strong>
+                  </p>
+                  <span
+                    className={`pdv-badge ${selectedPdv.visitStatus}`}
+                    style={{ fontSize: 12 }}
+                  >
+                    {selectedPdv.visitStatus === 'completed' && <CheckCircle2 size={10} />}
+                    {selectedPdv.visitStatus === 'pending' && <Clock size={10} />}
+                    {getStatusLabel(selectedPdv.visitStatus)}
+                  </span>
+                  <div style={{ marginTop: 10 }}>
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${selectedPdv.latitude},${selectedPdv.longitude}&travelmode=driving`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        padding: '6px 14px', borderRadius: 4,
+                        background: '#001E40', color: '#fff',
+                        fontSize: 12, fontWeight: 600, textDecoration: 'none',
+                        letterSpacing: '0.05em', textTransform: 'uppercase'
+                      }}
+                    >
+                      <Navigation size={12} /> Navegar
+                    </a>
+                  </div>
+                </div>
+              </InfoWindow>
+            )}
+          </Map>
+        </APIProvider>
+
+        {/* Map Legend Overlay */}
+        <div className="map-overlay">
+          <div className="map-legend">
+            <div className="legend-item">
+              <div className="legend-dot pending"></div>
+              Pendiente
+            </div>
+            <div className="legend-item">
+              <div className="legend-dot completed"></div>
+              Completado
+            </div>
+            <div className="legend-item">
+              <div className="legend-dot skipped"></div>
+              Omitido
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
-
-function StatusBadge({ status }) {
-  const colors = {
-    pending: '#f57f17',
-    in_progress: '#1565c0',
-    completed: '#2e7d32',
-    partial: '#6a1b9a',
-  };
-  return (
-    <span style={{
-      background: colors[status] || '#666',
-      color: '#fff',
-      padding: '2px 8px',
-      borderRadius: 4,
-      fontSize: '0.8rem',
-    }}>
-      {status}
-    </span>
-  );
-}
-
-const th = { padding: '10px 12px', textAlign: 'left', fontWeight: 600 };
-const td = { padding: '10px 12px', borderBottom: '1px solid #e0e0e0' };
