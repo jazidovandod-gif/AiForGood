@@ -1,100 +1,112 @@
 import React, { useState } from 'react';
-import { MapContainer, TileLayer, Polyline, Circle, CircleMarker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Polyline, Circle, CircleMarker, Popup, Tooltip } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Truck, AlertTriangle, CheckCircle2, Navigation } from 'lucide-react';
+import { Navigation, Clock, CheckCircle2 } from 'lucide-react';
+import { useAuthStore } from '../../auth/store/useAuthStore';
 
-// Coordenadas simuladas en La Paz
-const BASE = [-16.4950, -68.1300] as [number, number];
-const DESTINO_1 = [-16.5367, -68.0924] as [number, number]; // Ketal Megacenter
-const VEHICULO_ACTUAL = [-16.5150, -68.1100] as [number, number]; // A medio camino
-
-// Ruta planificada
-const RUTA_PLANIFICADA: [number, number][] = [
-  BASE,
-  [-16.5050, -68.1200],
-  [-16.5100, -68.1150],
-  VEHICULO_ACTUAL,
-  [-16.5200, -68.1050],
-  [-16.5300, -68.1000],
-  DESTINO_1
+// Coordenadas Reales Extraídas del Backend (excel_data.py - La Paz)
+const PARADAS_OPTIMIZADAS = [
+  { id: 1, nombre: 'Almacén Base', lat: -16.5300000, lng: -68.0500000, status: 'completado', hora: '08:00 AM' },
+  { id: 2, nombre: 'Mercado Chasquipampa', lat: -16.5367867, lng: -68.0469685, status: 'completado', hora: '08:45 AM' },
+  { id: 3, nombre: 'Mercado Achumani', lat: -16.5306310, lng: -68.0735448, status: 'en_ruta', hora: '09:30 AM (Est)' },
+  { id: 4, nombre: 'Villa Armonía', lat: -16.5091174, lng: -68.1096591, status: 'pendiente', hora: '10:15 AM (Est)' },
+  { id: 5, nombre: '10 de Enero', lat: -16.5019009, lng: -68.1046631, status: 'pendiente', hora: '11:00 AM (Est)' },
+  { id: 6, nombre: 'San Antonio', lat: -16.4979223, lng: -68.1085645, status: 'pendiente', hora: '11:45 AM (Est)' },
+  { id: 7, nombre: 'Cruce de Villas', lat: -16.4957719, lng: -68.1168489, status: 'pendiente', hora: '12:30 PM (Est)' }
 ];
 
+const RUTA_LATLNG: [number, number][] = PARADAS_OPTIMIZADAS.map(p => [p.lat, p.lng]);
+const VEHICULO_ACTUAL: [number, number] = [-16.5330000, -68.0600000]; // En tránsito entre Chasquipampa y Achumani
+
 export const RutasMapaPage: React.FC = () => {
-  const [selectedTruck, setSelectedTruck] = useState(1);
+  const user = useAuthStore(state => state.user);
+  const [selectedStop, setSelectedStop] = useState(3);
+
+  // Título contextual según el rol (como solicitó el usuario)
+  const getTituloContextual = () => {
+    if (!user) return 'Seguimiento de Flota';
+    if (user.role.toLowerCase() === 'administrador' || user.role.toLowerCase() === 'admin') {
+      return 'Ruta Óptima de Flota (Vista Administrador)';
+    } else if (user.role.toLowerCase() === 'supervisor') {
+      return 'Ruta Óptima de Flota (Vista Supervisor)';
+    } else {
+      return 'Mi Ruta Óptima (Vista Reponedor/Repartidor)';
+    }
+  };
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col">
       <div className="mb-4 flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-bold text-[#003366]">Seguimiento de Flota (Geofencing)</h2>
-          <p className="text-gray-500">Monitoreo en tiempo real de rutas y cruce de geocercas.</p>
+          <h2 className="text-2xl font-bold text-[#003366]">{getTituloContextual()}</h2>
+          <p className="text-gray-500">
+            Algoritmo de ruteo TSP en tiempo real con geofencing. 
+            <span className="ml-2 bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded font-semibold border border-blue-200">
+              {PARADAS_OPTIMIZADAS.length} Puntos de Entrega
+            </span>
+          </p>
         </div>
         <div className="flex gap-2">
           <span className="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            GPS Activo
+            GPS Vehículo VEN-01 Activo
           </span>
         </div>
       </div>
 
       <div className="flex-1 flex gap-4 min-h-0">
         
-        {/* Panel Lateral de Flota */}
-        <div className="w-80 bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col gap-3 overflow-y-auto">
-          <h3 className="font-bold text-gray-700 uppercase text-xs tracking-wider mb-2">Unidades Activas</h3>
-          
-          {/* Tarjeta Camión 1 */}
-          <div 
-            onClick={() => setSelectedTruck(1)}
-            className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedTruck === 1 ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 hover:border-blue-300'}`}
-          >
-            <div className="flex justify-between items-start mb-2">
-              <div className="flex items-center gap-2">
-                <div className="bg-[#003366] p-1.5 rounded-md">
-                  <Truck className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm text-gray-900">Camión VEN-01</h4>
-                  <p className="text-xs text-gray-500">Ruta Sur (Irpavi)</p>
-                </div>
-              </div>
-              <CheckCircle2 className="w-5 h-5 text-green-500" />
-            </div>
-            <div className="text-xs text-gray-600 space-y-1">
-              <p className="flex justify-between"><span>Velocidad:</span> <span className="font-medium">45 km/h</span></p>
-              <p className="flex justify-between"><span>Estado:</span> <span className="font-medium text-green-600">En Ruta (A tiempo)</span></p>
-            </div>
+        {/* Panel Lateral de Itinerario (Timeline) */}
+        <div className="w-80 bg-white rounded-xl shadow-sm border border-gray-100 p-0 flex flex-col overflow-hidden">
+          <div className="p-4 border-b border-gray-100 bg-gray-50">
+            <h3 className="font-bold text-gray-700 uppercase text-xs tracking-wider flex items-center gap-2">
+              <Navigation className="w-4 h-4 text-[#003366]" />
+              Itinerario Optimizado (IA)
+            </h3>
           </div>
+          
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="relative border-l-2 border-gray-200 ml-3 space-y-6">
+              
+              {PARADAS_OPTIMIZADAS.map((parada, idx) => (
+                <div 
+                  key={parada.id}
+                  onClick={() => setSelectedStop(parada.id)}
+                  className="relative pl-6 cursor-pointer group"
+                >
+                  {/* Punto en el timeline */}
+                  <span className={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 border-white transition-colors
+                    ${parada.status === 'completado' ? 'bg-[#5E7032]' : 
+                      parada.status === 'en_ruta' ? 'bg-orange-500 animate-pulse' : 'bg-gray-300'}`}
+                  ></span>
+                  
+                  {/* Tarjeta de Parada */}
+                  <div className={`p-3 rounded-lg border transition-all 
+                    ${selectedStop === parada.id ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-100 group-hover:border-blue-300'}`}
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <h4 className={`font-bold text-sm ${parada.status === 'completado' ? 'text-gray-900' : 'text-gray-700'}`}>
+                        {idx + 1}. {parada.nombre}
+                      </h4>
+                      {parada.status === 'completado' && <CheckCircle2 className="w-4 h-4 text-[#5E7032]" />}
+                    </div>
+                    <div className="flex items-center text-xs text-gray-500 gap-1 mt-1">
+                      <Clock className="w-3 h-3" />
+                      <span>{parada.hora}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
 
-          {/* Tarjeta Camión 2 (Con Alerta) */}
-          <div 
-            onClick={() => setSelectedTruck(2)}
-            className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedTruck === 2 ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 hover:border-blue-300'}`}
-          >
-            <div className="flex justify-between items-start mb-2">
-              <div className="flex items-center gap-2">
-                <div className="bg-[#D32F2F] p-1.5 rounded-md">
-                  <Truck className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-sm text-gray-900">Camión VEN-04</h4>
-                  <p className="text-xs text-gray-500">Ruta Centro</p>
-                </div>
-              </div>
-              <AlertTriangle className="w-5 h-5 text-[#D32F2F] animate-pulse" />
-            </div>
-            <div className="text-xs text-gray-600 space-y-1">
-              <p className="flex justify-between"><span>Velocidad:</span> <span className="font-medium">0 km/h</span></p>
-              <p className="flex justify-between"><span>Estado:</span> <span className="font-medium text-[#D32F2F]">Desvío de Geocerca (150m)</span></p>
             </div>
           </div>
         </div>
 
-        {/* Mapa de Tracking */}
+        {/* Mapa de Tracking Multi-Parada */}
         <div className="flex-1 rounded-xl overflow-hidden shadow-sm border border-gray-200 relative z-0">
           <MapContainer 
-            center={VEHICULO_ACTUAL} 
-            zoom={14} 
+            center={[-16.5150, -68.0850]} 
+            zoom={13} 
             className="h-full w-full"
             zoomControl={true}
           >
@@ -103,48 +115,58 @@ export const RutasMapaPage: React.FC = () => {
               url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
             />
             
-            {/* Geocerca Base (Almacén) */}
-            <Circle 
-              center={BASE} 
-              radius={100} 
-              pathOptions={{ color: '#003366', fillColor: '#003366', fillOpacity: 0.2 }} 
-            >
-              <Popup>Almacén Central (Geocerca 100m)</Popup>
-            </Circle>
-
-            {/* Geocerca Destino */}
-            <Circle 
-              center={DESTINO_1} 
-              radius={100} 
-              pathOptions={{ color: '#5E7032', fillColor: '#5E7032', fillOpacity: 0.2 }} 
-            >
-              <Popup>Ketal Megacenter (Geocerca 100m)</Popup>
-            </Circle>
-
-            {/* Ruta Planificada */}
+            {/* Ruta Planificada Optimizada */}
             <Polyline 
-              positions={RUTA_PLANIFICADA} 
-              pathOptions={{ color: '#003366', weight: 4, dashArray: '10, 10' }} 
+              positions={RUTA_LATLNG} 
+              pathOptions={{ color: '#003366', weight: 4, dashArray: '8, 8', opacity: 0.7 }} 
             />
 
-            {/* Vehículo en movimiento */}
+            {/* Marcadores para cada Parada de la Ruta */}
+            {PARADAS_OPTIMIZADAS.map((parada, idx) => (
+              <React.Fragment key={parada.id}>
+                <Circle 
+                  center={[parada.lat, parada.lng]} 
+                  radius={120} 
+                  pathOptions={{ 
+                    color: parada.status === 'completado' ? '#5E7032' : parada.status === 'en_ruta' ? '#f97316' : '#9ca3af', 
+                    fillColor: parada.status === 'completado' ? '#5E7032' : parada.status === 'en_ruta' ? '#f97316' : '#9ca3af', 
+                    fillOpacity: 0.15,
+                    weight: 1
+                  }} 
+                />
+                <CircleMarker
+                  center={[parada.lat, parada.lng]}
+                  radius={14}
+                  pathOptions={{
+                    color: '#fff',
+                    fillColor: parada.status === 'completado' ? '#5E7032' : parada.status === 'en_ruta' ? '#f97316' : '#003366',
+                    fillOpacity: 1,
+                    weight: 2
+                  }}
+                >
+                  <Tooltip direction="center" permanent className="bg-transparent border-none shadow-none text-white font-bold text-xs">
+                    {idx + 1}
+                  </Tooltip>
+                  <Popup>
+                    <div className="font-sans text-center px-2 py-1">
+                      <h3 className="font-bold text-gray-900 text-sm mb-1">{parada.nombre}</h3>
+                      <p className="text-xs text-gray-500 capitalize">Estado: {parada.status.replace('_', ' ')}</p>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              </React.Fragment>
+            ))}
+
+            {/* Vehículo en movimiento (Actualmente en tránsito) */}
             <CircleMarker
               center={VEHICULO_ACTUAL}
-              radius={12}
-              pathOptions={{
-                color: '#fff',
-                fillColor: '#003366',
-                fillOpacity: 1,
-                weight: 3
-              }}
+              radius={18}
+              pathOptions={{ color: '#fff', fillColor: '#000', fillOpacity: 1, weight: 3 }}
             >
-              <Popup>
-                <div className="font-sans text-center">
-                  <Truck className="w-6 h-6 mx-auto mb-1 text-[#003366]" />
-                  <h3 className="font-bold text-gray-900 text-sm">VEN-01</h3>
-                  <p className="text-xs text-gray-500">45 km/h</p>
-                </div>
-              </Popup>
+              <Tooltip direction="top" permanent className="font-bold border border-gray-800 rounded">
+                VEN-01
+              </Tooltip>
+              <Popup>Camión VEN-01 (45 km/h) - En ruta a Achumani</Popup>
             </CircleMarker>
 
           </MapContainer>

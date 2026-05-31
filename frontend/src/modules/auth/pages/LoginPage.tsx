@@ -42,7 +42,11 @@ const LoginPage: React.FC = () => {
 
       // Guardamos tokens usando nuestro nuevo store
       if (data.refresh) localStorage.setItem('refresh_token', data.refresh);
-      login(data.access);
+      login(data.access, {
+        username: data.username || username,
+        firstName: data.first_name || data.username || username,
+        role: data.is_superuser ? 'Administrador' : data.role || 'Supervisor'
+      });
       
       // Redirigimos al Dashboard
       navigate('/logistica/dashboard', { replace: true });

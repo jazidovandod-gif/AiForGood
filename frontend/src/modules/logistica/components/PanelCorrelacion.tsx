@@ -38,23 +38,25 @@ export const PanelCorrelacion: React.FC = () => {
       )}
 
       {/* Tiempos de Ruta (KPI Logístico) */}
-      <div className="mb-6 h-40">
+      <div className="mb-10">
         <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
           <Clock className="w-4 h-4" /> KPI: Tiempos en Ruta (Minutos)
         </h4>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={sucursalSeleccionada.tiemposRuta}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="tramo" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} width={30} />
-            <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-            <Legend wrapperStyle={{ fontSize: '10px' }} />
-            <Bar dataKey="planificado" name="Planificado" fill="#E5E7EB" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="real" name="Real" fill={sucursalSeleccionada.fallaPrincipal === 'Logística' ? '#D32F2F' : '#003366'} radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="h-44">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={sucursalSeleccionada.tiemposRuta}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="tramo" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} width={30} />
+              <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+              <Legend wrapperStyle={{ fontSize: '10px' }} />
+              <Bar dataKey="planificado" name="Planificado" fill="#E5E7EB" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="real" name="Real" fill={sucursalSeleccionada.fallaPrincipal === 'Logística' ? '#D32F2F' : '#003366'} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
         {sucursalSeleccionada.fallaPrincipal === 'Logística' && (
-          <p className="text-xs text-[#D32F2F] mt-1 text-center font-medium animate-pulse">
+          <p className="text-xs text-[#D32F2F] mt-3 text-center font-bold animate-pulse">
             Sugerencia del Sistema: Reajustar planificación de ruta.
           </p>
         )}
