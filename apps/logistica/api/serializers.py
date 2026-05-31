@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from django.contrib.gis.geos import Point
-from apps.logistica.models import RouteStop, Visit, FormularioDinamico, ProductoExterno
+from django.db.models import F
+from django.db.models.functions import Coalesce
+from apps.logistica.models import RouteStop, Visit, FormularioDinamico, ProductoExterno, Route, RestockRequest
 from apps.logistica.services.geofencing import GeofencingService
 from django.utils import timezone
 
@@ -73,3 +75,71 @@ class ProductoExternoSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductoExterno
         fields = "__all__"
+
+
+class PDVResumenSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    code = serializers.CharField()
+    market_name = serializers.SerializerMethodField()
+    lat = serializers.SerializerMethodField()
+    lng = serializers.SerializerMethodField()
+    visit_minutes_estimated = serializers.IntegerField()
+
+    def get_market_name(self, obj):
+        return obj.market.name
+
+    def get_lat(self, obj):
+        return obj.location.y
+
+    def get_lng(self, obj):
+        return obj.location.x
+
+
+class RouteStopResumenSerializer(serializers.ModelSerializer):
+    pdv = PDVResumenSerializer(read_only=True)
+
+    class Meta:
+        model = RouteStop
+        fields = ['id', 'stop_order', 'status', 'estimated_minutes', 'arrived_at', 'finished_at', 'pdv']
+
+
+class RutaDeHoySerializer(serializers.ModelSerializer):
+    stops = RouteStopResumenSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Route
+        fields = ['id', 'status', 'route_date', 'total_pdvs', 'total_estimated_minutes', 'total_real_minutes', 'started_at', 'stops']
+
+
+class CompletarParadaSerializer(serializers.Serializer):
+    real_minutes = serializers.IntegerField(required=False, min_value=0)
+    notas = serializers.CharField(required=False, allow_blank=True)
+
+    def create(self, validated_data):
+        stop = self.context['stop']
+        now = timezone.now()
+
+        stop.status = 'completed'
+        stop.finished_at = now
+        stop.real_minutes = validated_data.get('real_minutes')
+        stop.save()
+
+        Visit.objects.filter(route_stop=stop, status='in_progress').update(
+            status='completed',
+            finished_at=now,
+        )
+
+        real_minutes = validated_data.get('real_minutes')
+        if real_minutes:
+            Route.objects.filter(id=stop.route_id).update(
+                total_real_minutes=Coalesce(F('total_real_minutes'), 0) + real_minutes
+            )
+
+        return stop
+
+
+class RestockRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RestockRequest
+        fields = ['id', 'pdv', 'product_name', 'quantity_requested', 'urgency', 'notes', 'photo_url', 'status', 'created_at']
+        read_only_fields = ['id', 'status', 'created_at']
