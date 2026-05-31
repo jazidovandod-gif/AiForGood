@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"/>
 </p>
 
-# 🦌 Venado Route AI
+# 🦌 Venaris Route
 
 ### Plataforma de Optimización Inteligente de Rutas
 
