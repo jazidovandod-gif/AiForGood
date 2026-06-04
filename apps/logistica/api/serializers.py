@@ -100,15 +100,30 @@ class RouteStopResumenSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RouteStop
-        fields = ['id', 'stop_order', 'status', 'estimated_minutes', 'arrived_at', 'finished_at', 'pdv']
+        fields = [
+            'id', 'stop_order', 'status', 'estimated_minutes',
+            'distance_from_prev_km', 'arrived_at', 'finished_at', 'pdv',
+        ]
 
 
 class RutaDeHoySerializer(serializers.ModelSerializer):
-    stops = RouteStopResumenSerializer(many=True, read_only=True)
+    stops = serializers.SerializerMethodField()
+    traffic_info = serializers.SerializerMethodField()
 
     class Meta:
         model = Route
-        fields = ['id', 'status', 'route_date', 'total_pdvs', 'total_estimated_minutes', 'total_real_minutes', 'started_at', 'stops']
+        fields = [
+            'id', 'status', 'route_date', 'total_pdvs',
+            'total_estimated_minutes', 'total_distance_km',
+            'total_real_minutes', 'started_at', 'stops', 'traffic_info',
+        ]
+
+    def get_stops(self, obj):
+        stops = obj.stops.select_related('pdv__market').order_by('stop_order')
+        return RouteStopResumenSerializer(stops, many=True).data
+
+    def get_traffic_info(self, obj):
+        return self.context.get('traffic_info')
 
 
 class CompletarParadaSerializer(serializers.Serializer):

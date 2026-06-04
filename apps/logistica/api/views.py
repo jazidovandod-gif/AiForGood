@@ -23,6 +23,7 @@ from apps.logistica.models.external import ProductoExterno
 from apps.logistica.models.forms import FormularioDinamico
 from apps.logistica.models import Route, RouteStop, RestockRequest, Visit
 from apps.logistica.services.google_drive import subir_foto, DriveUploadError
+from apps.logistica.services.route_optimization import optimize_route, get_route_details
 
 class CheckInAPIView(generics.CreateAPIView):
     """
@@ -79,11 +80,19 @@ class RutaDeHoyView(APIView):
     def get(self, request):
         today = timezone.now().date()
         ruta = get_object_or_404(
-            Route.objects.prefetch_related('stops__pdv__market'),
+            Route,
             replenisher=request.user,
             route_date=today,
         )
-        serializer = RutaDeHoySerializer(ruta)
+
+        # ?trafico=1 → incluye detalles de tráfico en tiempo real (llamada a Google Maps)
+        traffic_info = None
+        if request.query_params.get('trafico') == '1' and ruta.status in ('pending', 'in_progress'):
+            stops = ruta.stops.select_related('pdv').order_by('stop_order')
+            ordered_points = [(s.pdv.location.y, s.pdv.location.x) for s in stops]
+            traffic_info = get_route_details(ordered_points)
+
+        serializer = RutaDeHoySerializer(ruta, context={'traffic_info': traffic_info, 'request': request})
         return Response(serializer.data)
 
 
@@ -96,10 +105,68 @@ class IniciarRutaView(APIView):
             raise PermissionDenied("No tienes acceso a esta ruta.")
         if ruta.status != 'pending':
             raise ValidationError(f"La ruta ya está en estado '{ruta.status}'.")
-        ruta.status = 'in_progress'
-        ruta.started_at = timezone.now()
-        ruta.save()
-        return Response({"status": "success", "mensaje": "Ruta iniciada.", "route_id": ruta.id})
+
+        # Optimizar orden de visita con tráfico en tiempo real
+        stops = list(ruta.stops.select_related('pdv').order_by('stop_order'))
+        pdvs = [s.pdv for s in stops]
+        result = optimize_route(pdvs)
+        optimized_pdvs = result['pdvs']
+        route_details = result['route_details']
+
+        pdv_to_stop = {s.pdv_id: s for s in stops}
+
+        with transaction.atomic():
+            # Fase 1: órdenes temporales negativos para evitar conflicto unique_together
+            for i, stop in enumerate(stops):
+                stop.stop_order = -(i + 1)
+            RouteStop.objects.bulk_update(stops, ['stop_order'])
+
+            # Fase 2: nuevo orden optimizado + distancia al tramo anterior
+            for new_order, pdv in enumerate(optimized_pdvs, start=1):
+                stop = pdv_to_stop[pdv.id]
+                stop.stop_order = new_order
+                if route_details and new_order > 1:
+                    leg_index = new_order - 2
+                    if leg_index < len(route_details['legs']):
+                        stop.distance_from_prev_km = round(
+                            route_details['legs'][leg_index]['distance_m'] / 1000, 3
+                        )
+            RouteStop.objects.bulk_update(stops, ['stop_order', 'distance_from_prev_km'])
+
+            # Actualizar totales de la ruta con valores del tráfico real
+            ruta.status = 'in_progress'
+            ruta.started_at = timezone.now()
+            if route_details:
+                ruta.total_distance_km = round(route_details['total_distance_m'] / 1000, 3)
+                ruta.total_estimated_minutes = route_details['total_duration_traffic_s'] // 60
+            ruta.save()
+
+        response_data = {
+            "status": "success",
+            "mensaje": "Ruta iniciada y optimizada con tráfico en tiempo real.",
+            "route_id": ruta.id,
+        }
+
+        if route_details:
+            response_data["optimizacion"] = {
+                "via_principal": route_details['summary'],
+                "distancia_total": route_details['total_distance_text'],
+                "tiempo_estimado_min": route_details['total_duration_s'] // 60,
+                "tiempo_con_trafico_min": route_details['total_duration_traffic_s'] // 60,
+                "demora_trafico_min": route_details['total_traffic_delay_s'] // 60,
+                "advertencias": route_details['warnings'],
+                "polyline": route_details['overview_polyline'],
+                "tramos": [
+                    {
+                        "distancia": leg['distance_text'],
+                        "tiempo_trafico": leg['duration_traffic_text'],
+                        "demora_s": leg['traffic_delay_s'],
+                    }
+                    for leg in route_details['legs']
+                ],
+            }
+
+        return Response(response_data)
 
 
 class CompletarParadaView(APIView):
