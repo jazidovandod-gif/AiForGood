@@ -41,7 +41,7 @@ export default function Login({ onLogin }) {
     <div className="login-container">
       <div className="login-card">
         <div className="brand-header">
-          <div className="logo-placeholder"></div>
+          <img src="/logo.svg" alt="Logo Venado Route AI" className="brand-logo" />
           <div className="wordmark">
             <span className="wordmark-top">INDUSTRIAS</span>
             <span className="wordmark-bottom">VENADO</span>

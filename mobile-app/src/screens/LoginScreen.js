@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Image } from 'react-native';
 import { colors, SPACING, FONT_SIZES, FONTS, RADIUS, shadow } from '../theme';
 import { BodyText, Label } from '../components/StyledText';
 import AppButton from '../components/AppButton';
@@ -86,7 +87,12 @@ export default function LoginScreen() {
         style={styles.keyboardView}
       >
         <View style={styles.brandContainer}>
-          <View style={styles.logoPlaceholder} />
+          <Image
+              source={require('../../assets/logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+              accessibilityLabel="Logo Venado Route AI"
+            />
           <View style={styles.wordmarkContainer}>
             <BodyText style={styles.wordmarkTop}>INDUSTRIAS</BodyText>
             <BodyText style={styles.wordmarkBottom}>VENADO</BodyText>
@@ -137,10 +143,9 @@ const styles = StyleSheet.create({
   keyboardView: { flex: 1, justifyContent: 'center', padding: SPACING.xl },
 
   brandContainer: { alignItems: 'center', marginBottom: SPACING.xxl + SPACING.lg },
-  logoPlaceholder: {
-    width: 64, height: 64,
-    backgroundColor: colors.primary,
-    borderRadius: RADIUS.md, marginBottom: SPACING.lg,
+  logo: {
+    width: 96, height: 96,
+    marginBottom: SPACING.lg,
   },
   wordmarkContainer: { alignItems: 'center' },
   wordmarkTop: {

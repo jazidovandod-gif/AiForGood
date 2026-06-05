@@ -23,11 +23,10 @@
   margin-bottom: 2.5rem;
 }
 
-.logo-placeholder {
-  width: 64px;
-  height: 64px;
-  background-color: var(--primary);
-  border-radius: 8px;
+.brand-logo {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
   margin-bottom: 1rem;
 }
 
