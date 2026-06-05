@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Map, Users, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Map, Users, Package, Settings, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../../modules/auth/store/useAuthStore';
 
 interface SidebarProps {
@@ -14,6 +14,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
     { name: 'Dashboard', path: '/logistica/dashboard', icon: LayoutDashboard },
     { name: 'Rutas y Mapa', path: '/logistica/rutas', icon: Map },
     { name: 'Registro y Asignación', path: '/logistica/registro', icon: Users },
+    { name: 'Gestión Eventos', path: '/logistica/eventos', icon: Package },
     { name: 'Configuración', path: '/configuracion', icon: Settings },
   ];
 

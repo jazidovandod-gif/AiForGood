@@ -4,6 +4,7 @@ import { Routes, Route } from 'react-router-dom';
 const DashboardPage = lazy(() => import('../pages/DashboardPage'));
 const RutasMapaPage = lazy(() => import('../pages/RutasMapaPage'));
 const RegistroAsignacionPage = lazy(() => import('../pages/RegistroAsignacionPage'));
+const EventosPage = lazy(() => import('../pages/EventosPage'));
 
 const ModuleLoader = () => (
   <div className="flex h-full w-full items-center justify-center p-12">
@@ -18,6 +19,7 @@ const LogisticaRoutes: React.FC = () => {
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="rutas" element={<RutasMapaPage />} />
         <Route path="registro" element={<RegistroAsignacionPage />} />
+        <Route path="eventos" element={<EventosPage />} />
       </Routes>
     </Suspense>
   );
